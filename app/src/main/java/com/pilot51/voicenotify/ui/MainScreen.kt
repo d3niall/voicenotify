@@ -21,6 +21,8 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -62,6 +64,7 @@ import com.pilot51.voicenotify.prefs.DataStoreManager.setPref
 import com.pilot51.voicenotify.prefs.PreferenceHelper.KEY_DISABLE_AUTOSTART_MSG
 import com.pilot51.voicenotify.prefs.db.App
 import com.pilot51.voicenotify.ui.dialog.main.BackupDialog
+import com.pilot51.voicenotify.ui.dialog.main.BluetoothDevicesDialog
 import com.pilot51.voicenotify.ui.dialog.main.DeviceStatesDialog
 import com.pilot51.voicenotify.ui.dialog.main.IgnoreRepeatsDialog
 import com.pilot51.voicenotify.ui.dialog.main.IgnoreTextDialog
@@ -121,6 +124,7 @@ fun MainScreen(
 	var showIgnoreText by remember { mutableStateOf(false) }
 	var showIgnoreRepeats by remember { mutableStateOf(false) }
 	var showDeviceStates by remember { mutableStateOf(false) }
+	var showBluetoothDevices by remember { mutableStateOf(false) }
 	var showQuietTimeStart by remember { mutableStateOf(false) }
 	var showQuietTimeEnd by remember { mutableStateOf(false) }
 	var showTestNotification by remember { mutableStateOf(false) }
@@ -281,6 +285,13 @@ fun MainScreen(
 			},
 			onClick = { showDeviceStates = true }
 		)
+		if (settings.isGlobal) {
+			PreferenceRowLink(
+				title = stringResource(R.string.bluetooth_devices),
+				summary = stringResource(R.string.bluetooth_devices_summary),
+				onClick = { showBluetoothDevices = true }
+			)
+		}
 		PreferenceRowLink(
 			titleRes = R.string.quiet_start,
 			summaryRes = R.string.quiet_start_summary,
@@ -346,6 +357,26 @@ fun MainScreen(
 	}
 	if (showDeviceStates) {
 		DeviceStatesDialog(vm) { showDeviceStates = false }
+	}
+	val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
+		ActivityResultContracts.RequestPermission()
+	) { granted ->
+		if (!granted) {
+			Toast.makeText(context, R.string.bluetooth_permission_denied, Toast.LENGTH_LONG).show()
+		}
+	}
+	if (showBluetoothDevices) {
+		BluetoothDevicesDialog(
+			onDismiss = { showBluetoothDevices = false },
+			onRequestPermission = {
+				val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+					Manifest.permission.BLUETOOTH_CONNECT
+				} else {
+					Manifest.permission.BLUETOOTH_ADMIN
+				}
+				bluetoothPermissionLauncher.launch(permission)
+			}
+		)
 	}
 	if (showQuietTimeStart) {
 		QuietTimeDialog(

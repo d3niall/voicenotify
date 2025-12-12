@@ -76,6 +76,15 @@
 		<item>Headset On</item>
 		<item>Silent/Vibrate</item>
 	</string-array>
+	<string name="bluetooth_devices">Bluetooth Devices</string>
+	<string name="bluetooth_devices_summary">Select specific Bluetooth devices for notifications</string>
+	<string name="bluetooth_devices_dialog_title">Bluetooth Devices</string>
+	<string name="bluetooth_devices_description">Select which Bluetooth devices should speak notifications. If none are selected, all devices will be used.</string>
+	<string name="wired_devices">Wired Devices</string>
+	<string name="no_bluetooth_devices">No paired Bluetooth devices found</string>
+	<string name="bluetooth_permission_required">Bluetooth permission is required to list paired devices</string>
+	<string name="bluetooth_permission_denied">Bluetooth permission denied. Unable to list devices.</string>
+	<string name="grant_permission">Grant Permission</string>
 	<string name="quiet_start">Quiet Time Start</string>
 	<string name="quiet_start_summary">Don\'t speak after this time.\nLeave the same as end to disable.</string>
 	<string name="quiet_end">Quiet Time End</string>

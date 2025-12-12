@@ -17,6 +17,9 @@
 	xmlns:tools="http://schemas.android.com/tools"
 	android:installLocation="internalOnly">
 	<uses-permission android:name="android.permission.BLUETOOTH" />
+	<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+	<uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+		android:maxSdkVersion="30" />
 	<uses-permission android:name="android.permission.VIBRATE" />
 	<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 	<uses-permission android:name="android.permission.READ_PHONE_STATE" android:maxSdkVersion="30" />

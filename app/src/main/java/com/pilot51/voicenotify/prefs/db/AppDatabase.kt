@@ -42,20 +42,23 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.seconds
 
 @Database(
-	version = 3,
+	version = 4,
 	entities = [
 		App::class,
-		Settings::class
+		Settings::class,
+		BluetoothDevice::class
 	],
 	autoMigrations = [
 		AutoMigration(from = 1, to = 2, spec = AppDatabase.Migration1To2::class),
-		AutoMigration(from = 2, to = 3)
+		AutoMigration(from = 2, to = 3),
+		AutoMigration(from = 3, to = 4)
 	]
 )
 @RewriteQueriesToDropUnusedColumns
 abstract class AppDatabase : RoomDatabase() {
 	abstract val appDao: AppDao
 	abstract val settingsDao: SettingsDao
+	abstract val bluetoothDeviceDao: BluetoothDeviceDao
 
 	interface BaseDao<T> {
 		@Insert
@@ -113,6 +116,24 @@ abstract class AppDatabase : RoomDatabase() {
 		suspend fun deleteByPackage(pkg: String)
 	}
 
+	@Dao
+	interface BluetoothDeviceDao : BaseDao<BluetoothDevice> {
+		@Query("SELECT * FROM bluetooth_devices ORDER BY device_name")
+		fun getAll(): Flow<List<BluetoothDevice>>
+
+		@Query("SELECT * FROM bluetooth_devices WHERE is_enabled = 1")
+		fun getEnabled(): Flow<List<BluetoothDevice>>
+
+		@Query("SELECT * FROM bluetooth_devices WHERE device_address = :address")
+		suspend fun getByAddress(address: String): BluetoothDevice?
+
+		@Query("UPDATE bluetooth_devices SET is_enabled = :enabled WHERE device_address = :address")
+		suspend fun setEnabled(address: String, enabled: Boolean)
+
+		@Query("DELETE FROM bluetooth_devices WHERE device_address = :address")
+		suspend fun deleteByAddress(address: String)
+	}
+
 	@DeleteColumn(tableName = "apps", columnName = "_id")
 	class Migration1To2 : AutoMigrationSpec
 
@@ -124,7 +145,9 @@ abstract class AppDatabase : RoomDatabase() {
 		val db get() = _db.value ?: runBlocking { withTimeoutOrNull(1.seconds) { dbFlow.first() } }!!
 		val appDaoFlow = dbFlow.mapLatest { it.appDao }
 		val settingsDaoFlow = dbFlow.mapLatest { it.settingsDao }
+		val bluetoothDeviceDaoFlow = dbFlow.mapLatest { it.bluetoothDeviceDao }
 		val globalSettingsFlow = settingsDaoFlow.flatMapLatest { it.getGlobalSettings().filterNotNull() }
+		val enabledBluetoothDevicesFlow = bluetoothDeviceDaoFlow.flatMapLatest { it.getEnabled() }
 
 		private fun buildDB() = Room.databaseBuilder(appContext, AppDatabase::class.java, DB_NAME).build()
 

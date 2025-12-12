@@ -88,6 +88,7 @@ class Service : NotificationListenerService() {
 	private var repeaterJob: Job? = null
 	private val shake by lazy { Shake(appContext) }
 	private val repeatList = mutableListOf<NotificationInfo>()
+	private var enabledBluetoothDevices = emptyList<com.pilot51.voicenotify.prefs.db.BluetoothDevice>()
 	@get:RequiresApi(26)
 	@delegate:RequiresApi(26)
 	private val audioFocusRequest by lazy {
@@ -131,6 +132,11 @@ class Service : NotificationListenerService() {
 					}
 					stop()
 				}
+			}
+		}
+		ioScope.launch {
+			AppDatabase.enabledBluetoothDevicesFlow.collect { devices ->
+				enabledBluetoothDevices = devices
 			}
 		}
 	}
@@ -586,12 +592,53 @@ class Service : NotificationListenerService() {
 	private fun isHeadsetOn(): Boolean {
 		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 			audioMan.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
-				it.type.isAny(*audioDeviceTypes)
+				it.type.isAny(*audioDeviceTypes) && isDeviceAllowed(it)
 			}
 		} else {
 			@Suppress("DEPRECATION")
-			audioMan.isBluetoothA2dpOn || audioMan.isWiredHeadsetOn
+			(audioMan.isBluetoothA2dpOn && isBluetoothDeviceAllowed()) || (audioMan.isWiredHeadsetOn && isWiredDeviceAllowed())
 		}
+	}
+
+	@RequiresApi(Build.VERSION_CODES.M)
+	private fun isDeviceAllowed(deviceInfo: AudioDeviceInfo): Boolean {
+		// Check if this is a wired device
+		val isWired = deviceInfo.type.isAny(
+			AudioDeviceInfo.TYPE_WIRED_HEADSET,
+			AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+		) || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+			&& deviceInfo.type == AudioDeviceInfo.TYPE_USB_HEADSET)
+
+		if (isWired) {
+			return isWiredDeviceAllowed()
+		}
+
+		// Bluetooth devices: check against enabled list
+		return isBluetoothDeviceAllowed(deviceInfo.address)
+	}
+
+	private fun isWiredDeviceAllowed(): Boolean {
+		// If no devices are configured, allow all (backward compatible)
+		if (enabledBluetoothDevices.isEmpty()) return true
+
+		// Check if wired devices entry is enabled
+		return enabledBluetoothDevices.any {
+			it.deviceAddress == com.pilot51.voicenotify.prefs.db.BluetoothDevice.WIRED_DEVICE_ADDRESS
+		}
+	}
+
+	private fun isBluetoothDeviceAllowed(deviceAddress: String? = null): Boolean {
+		// If no devices are configured, allow all (backward compatible)
+		if (enabledBluetoothDevices.isEmpty()) return true
+
+		// If we have a device address, check if it's in the enabled list
+		if (deviceAddress != null) {
+			return enabledBluetoothDevices.any { it.deviceAddress == deviceAddress }
+		}
+
+		// For legacy API (<M), we don't have device address, so check if ANY enabled device exists
+		// This is less precise but maintains functionality
+		return enabledBluetoothDevices.isNotEmpty()
 	}
 
 	/**
@@ -623,6 +670,17 @@ class Service : NotificationListenerService() {
 			Log.d(TAG, "Received device state: $action")
 			var interruptIfIgnored = true
 			when (action) {
+				BluetoothDevice.ACTION_ACL_CONNECTED,
+				BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
+					// Extract device info for logging
+					val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+						intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+					} else {
+						@Suppress("DEPRECATION")
+						intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+					}
+					Log.d(TAG, "Bluetooth device ${device?.name ?: "unknown"} ${if (action == BluetoothDevice.ACTION_ACL_CONNECTED) "connected" else "disconnected"}")
+				}
 				Intent.ACTION_SCREEN_ON -> {
 					if (!isScreenOn()) return
 					repeaterJob?.let {
