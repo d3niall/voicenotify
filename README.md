@@ -1,3 +1,7 @@
+
+Forked from [Voice Notify](https://github.com/pilot51/voicenotify) to add feature to enable or disable bluetooth devices.
+All credits to Claude Code because I'm lazy.
+
 ![header-img]
 
 Voice Notify is an Android app that uses Text-to-Speech (TTS) to announce status bar notification messages so you don't need to look at the screen to know what a notification says.
@@ -15,6 +19,7 @@ Voice Notify is an Android app that uses Text-to-Speech (TTS) to announce status
 
 
 ## Features
+- *NEW* Added Feature to enable or disable bluetooth devices.
 - Widget and quick settings tile to suspend Voice Notify
 - Customizable TTS message
 - Replace text to be spoken
