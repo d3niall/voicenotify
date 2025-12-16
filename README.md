@@ -1,6 +1,7 @@
 
-Forked from [Voice Notify](https://github.com/pilot51/voicenotify) to add feature to enable or disable bluetooth devices.
-All credits to Claude Code because I'm lazy.
+Forked from [Voice Notify](https://github.com/pilot51/voicenotify) to add a feature to enable or disable bluetooth devices.
+Once this feature is added to the original app as per the standard relase schedule, I will delete this fork.
+All credits to the original author, and to Claude Code for the update because I'm lazy and time poor.
 
 ![header-img]
 
