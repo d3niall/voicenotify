@@ -25,12 +25,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
@@ -63,6 +69,7 @@ import com.pilot51.voicenotify.prefs.DataStoreManager.getPrefFlow
 import com.pilot51.voicenotify.prefs.DataStoreManager.setPref
 import com.pilot51.voicenotify.prefs.PreferenceHelper.KEY_DISABLE_AUTOSTART_MSG
 import com.pilot51.voicenotify.prefs.db.App
+import com.pilot51.voicenotify.prefs.db.Settings as VNSettings
 import com.pilot51.voicenotify.ui.dialog.main.BackupDialog
 import com.pilot51.voicenotify.ui.dialog.main.BluetoothDevicesDialog
 import com.pilot51.voicenotify.ui.dialog.main.DeviceStatesDialog
@@ -125,6 +132,7 @@ fun MainScreen(
 	var showIgnoreRepeats by remember { mutableStateOf(false) }
 	var showDeviceStates by remember { mutableStateOf(false) }
 	var showBluetoothDevices by remember { mutableStateOf(false) }
+	var showReplayTimeout by remember { mutableStateOf(false) }
 	var showQuietTimeStart by remember { mutableStateOf(false) }
 	var showQuietTimeEnd by remember { mutableStateOf(false) }
 	var showTestNotification by remember { mutableStateOf(false) }
@@ -291,6 +299,33 @@ fun MainScreen(
 				summary = stringResource(R.string.bluetooth_devices_summary),
 				onClick = { showBluetoothDevices = true }
 			)
+			PreferenceRowCheckbox(
+				titleRes = R.string.media_button_replay,
+				summaryResOn = R.string.media_button_replay_summary,
+				value = settings.mediaButtonReplayEnabled ?: VNSettings.DEFAULT_MEDIA_BUTTON_REPLAY_ENABLED,
+				onChange = { enabled ->
+					vm.save(settings.copy(mediaButtonReplayEnabled = enabled))
+				}
+			)
+			if (settings.mediaButtonReplayEnabled != false) {
+				PreferenceRowLink(
+					title = stringResource(R.string.replay_timeout),
+					summary = stringResource(
+						R.string.replay_timeout_summary,
+						formatReplayTimeout(settings.replayTimeoutMinutes ?: VNSettings.DEFAULT_REPLAY_TIMEOUT_MINUTES)
+					),
+					onClick = { showReplayTimeout = true }
+				)
+				PreferenceRowCheckbox(
+					titleRes = R.string.deactivate_after_replay,
+					summaryResOn = R.string.deactivate_after_replay_summary_on,
+					summaryResOff = R.string.deactivate_after_replay_summary_off,
+					value = settings.deactivateAfterReplay ?: VNSettings.DEFAULT_DEACTIVATE_AFTER_REPLAY,
+					onChange = { enabled ->
+						vm.save(settings.copy(deactivateAfterReplay = enabled))
+					}
+				)
+			}
 		}
 		PreferenceRowLink(
 			titleRes = R.string.quiet_start,
@@ -476,6 +511,79 @@ fun MainScreen(
 			showPostNotificationRationale = false
 		}
 	}
+	if (showReplayTimeout) {
+		ReplayTimeoutDialog(
+			vm = vm,
+			settings = settings
+		) { showReplayTimeout = false }
+	}
+}
+
+private fun formatReplayTimeout(minutes: Double): String {
+	return when {
+		minutes < 1.0 -> "${(minutes * 60).toInt()} seconds"
+		minutes == 1.0 -> "1 minute"
+		else -> String.format("%.1f minutes", minutes)
+	}
+}
+
+@Composable
+private fun ReplayTimeoutDialog(
+	vm: IPreferencesViewModel,
+	settings: VNSettings,
+	onDismiss: () -> Unit
+) {
+	var timeoutValue by remember {
+		mutableStateOf((settings.replayTimeoutMinutes ?: VNSettings.DEFAULT_REPLAY_TIMEOUT_MINUTES).toString())
+	}
+	var showError by remember { mutableStateOf(false) }
+
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		confirmButton = {
+			TextButton(
+				onClick = {
+					val timeout = timeoutValue.toDoubleOrNull()
+					if (timeout != null && timeout >= 0.5 && timeout <= 30.0) {
+						vm.save(settings.copy(replayTimeoutMinutes = timeout))
+						onDismiss()
+					} else {
+						showError = true
+					}
+				}
+			) {
+				Text(stringResource(android.R.string.ok))
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) {
+				Text(stringResource(android.R.string.cancel))
+			}
+		},
+		title = {
+			Text(stringResource(R.string.replay_timeout))
+		},
+		text = {
+			Column {
+				Text(stringResource(R.string.replay_timeout_description))
+				Spacer(modifier = Modifier.height(16.dp))
+				OutlinedTextField(
+					value = timeoutValue,
+					onValueChange = {
+						timeoutValue = it
+						showError = false
+					},
+					label = { Text("Minutes") },
+					isError = showError,
+					supportingText = if (showError) {
+						{ Text("Enter a value between 0.5 and 30 minutes") }
+					} else null,
+					keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+					modifier = Modifier.fillMaxWidth()
+				)
+			}
+		}
+	)
 }
 
 @VNPreview

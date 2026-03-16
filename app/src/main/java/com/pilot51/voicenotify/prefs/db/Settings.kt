@@ -88,7 +88,13 @@ data class Settings(
 	@ColumnInfo(name = "tts_delay")
 	val ttsDelay: Int? = null,
 	@ColumnInfo(name = "tts_repeat")
-	val ttsRepeat: Double? = null
+	val ttsRepeat: Double? = null,
+	@ColumnInfo(name = "media_button_replay_enabled")
+	val mediaButtonReplayEnabled: Boolean? = null,
+	@ColumnInfo(name = "replay_timeout_minutes")
+	val replayTimeoutMinutes: Double? = null,
+	@ColumnInfo(name = "deactivate_after_replay")
+	val deactivateAfterReplay: Boolean? = null
 ) {
 	@Ignore
 	val isGlobal = appPackage == null
@@ -126,7 +132,10 @@ data class Settings(
 			ttsMaxLength = overrides.ttsMaxLength ?: ttsMaxLength,
 			ttsStream = overrides.ttsStream ?: ttsStream,
 			ttsDelay = overrides.ttsDelay ?: ttsDelay,
-			ttsRepeat = overrides.ttsRepeat ?: ttsRepeat
+			ttsRepeat = overrides.ttsRepeat ?: ttsRepeat,
+			mediaButtonReplayEnabled = overrides.mediaButtonReplayEnabled ?: mediaButtonReplayEnabled,
+			replayTimeoutMinutes = overrides.replayTimeoutMinutes ?: replayTimeoutMinutes,
+			deactivateAfterReplay = overrides.deactivateAfterReplay ?: deactivateAfterReplay
 		)
 	}
 
@@ -152,6 +161,9 @@ data class Settings(
 		const val DEFAULT_SPEAK_EMOJIS = true
 		const val DEFAULT_MAX_LENGTH = 500
 		const val DEFAULT_TTS_STREAM = AudioManager.STREAM_MUSIC
+		const val DEFAULT_MEDIA_BUTTON_REPLAY_ENABLED = true
+		const val DEFAULT_REPLAY_TIMEOUT_MINUTES = 2.0
+		const val DEFAULT_DEACTIVATE_AFTER_REPLAY = false
 		val defaults get() = Settings(
 			id = 1,
 			appPackage = null,
@@ -174,7 +186,10 @@ data class Settings(
 			ttsMaxLength = DEFAULT_MAX_LENGTH,
 			ttsStream = DEFAULT_TTS_STREAM,
 			ttsDelay = null,
-			ttsRepeat = null
+			ttsRepeat = null,
+			mediaButtonReplayEnabled = DEFAULT_MEDIA_BUTTON_REPLAY_ENABLED,
+			replayTimeoutMinutes = DEFAULT_REPLAY_TIMEOUT_MINUTES,
+			deactivateAfterReplay = DEFAULT_DEACTIVATE_AFTER_REPLAY
 		)
 	}
 }

@@ -121,6 +121,7 @@ dependencies {
 	implementation(libs.androidx.compose.ui.tooling)
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.androidx.glance.appwidget)
+	implementation(libs.androidx.media)
 	implementation(libs.androidx.navigation.compose)
 	implementation(libs.androidx.preference)
 	implementation(libs.androidx.room.ktx)

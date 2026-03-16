@@ -28,6 +28,8 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.AudioManager.OnModeChangedListener
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -89,6 +91,9 @@ class Service : NotificationListenerService() {
 	private val shake by lazy { Shake(appContext) }
 	private val repeatList = mutableListOf<NotificationInfo>()
 	private var enabledBluetoothDevices = emptyList<com.pilot51.voicenotify.prefs.db.BluetoothDevice>()
+	private var mediaSession: MediaSessionCompat? = null
+	private var lastNotificationTime: Long = 0
+	private var timeoutJob: Job? = null
 	@get:RequiresApi(26)
 	@delegate:RequiresApi(26)
 	private val audioFocusRequest by lazy {
@@ -121,6 +126,7 @@ class Service : NotificationListenerService() {
 	private val ttsQueue = linkedMapOf<Long, NotificationInfo>()
 
 	override fun onCreate() {
+		initMediaSession()
 		ioScope.launch {
 			isSuspendedFlow.collect {
 				if (!it) return@collect
@@ -448,6 +454,9 @@ class Service : NotificationListenerService() {
 						info.addIgnoreReasons(IgnoreReason.TTS_FAILED)
 						restartTts()
 					}
+				} else {
+					// Activate MediaSession for replay on successful speak
+					activateMediaSessionForReplay(info.settings)
 				}
 				if (info.ignoreReasons.isNotEmpty()) {
 					NotifyList.updateInfo(info)
@@ -561,6 +570,7 @@ class Service : NotificationListenerService() {
 				audioMan.removeOnModeChangedListener(audioModeListener)
 			}
 			unregisterReceiver(stateReceiver)
+			cleanupMediaSession()
 			setInitialized(false)
 		}
 	}
@@ -724,6 +734,95 @@ class Service : NotificationListenerService() {
 		return app?.run {
 			db.settingsDao.getAppSettings(packageName).firstOrNull()?.let { gs.merge(it) }
 		} ?: gs
+	}
+
+	private fun initMediaSession() {
+		mediaSession = MediaSessionCompat(appContext, "VoiceNotifySession").apply {
+			setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS)
+			setCallback(object : MediaSessionCompat.Callback() {
+				override fun onSkipToPrevious() {
+					handleMediaButtonReplay()
+				}
+			})
+		}
+		Log.d(TAG, "MediaSession initialized")
+	}
+
+	private fun cleanupMediaSession() {
+		timeoutJob?.cancel()
+		mediaSession?.release()
+		mediaSession = null
+		Log.d(TAG, "MediaSession cleaned up")
+	}
+
+	private suspend fun activateMediaSessionForReplay(settings: Settings) {
+		val timeoutMinutes = settings.replayTimeoutMinutes ?: Settings.DEFAULT_REPLAY_TIMEOUT_MINUTES
+		val enabled = settings.mediaButtonReplayEnabled ?: Settings.DEFAULT_MEDIA_BUTTON_REPLAY_ENABLED
+
+		// Don't activate if disabled or timeout is 0
+		if (!enabled || timeoutMinutes <= 0) {
+			return
+		}
+
+		lastNotificationTime = System.currentTimeMillis()
+
+		mediaSession?.apply {
+			isActive = true
+			setPlaybackState(PlaybackStateCompat.Builder()
+				.setState(PlaybackStateCompat.STATE_PLAYING, 0, 1.0f)
+				.setActions(PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
+			.build())
+	}
+
+	// Start timeout timer with user-configured duration
+	}
+
+	private fun deactivateMediaSession() {
+		mediaSession?.isActive = false
+		timeoutJob?.cancel()
+		Log.d(TAG, "MediaSession deactivated after timeout")
+	}
+
+	private fun handleMediaButtonReplay() {
+		ioScope.launch {
+			val settings = AppDatabase.globalSettingsFlow.first()
+			val timeoutMinutes = settings.replayTimeoutMinutes ?: Settings.DEFAULT_REPLAY_TIMEOUT_MINUTES
+			val timeoutMs = (timeoutMinutes * 60 * 1000).toLong()
+
+			// Check if within timeout window
+			if (System.currentTimeMillis() - lastNotificationTime > timeoutMs) {
+				Log.d(TAG, "Media button pressed but timeout expired")
+				deactivateMediaSession()
+				return@launch
+			}
+
+			// Check if headset (including Bluetooth) is still connected
+			if (!isHeadsetOn()) {
+				Log.d(TAG, "Media button pressed but headset disconnected")
+				deactivateMediaSession()
+				return@launch
+			}
+
+			// Get most recent notification
+			val notificationToReplay = notifyListMutex.withLock {
+				NotifyList.notifyList.firstOrNull()
+			}
+
+			if (notificationToReplay != null) {
+				Log.i(TAG, "Replaying notification via media button: ${notificationToReplay.app?.label}")
+				// Speak the notification (bypasses other conditions like screen state, quiet time)
+				speak(notificationToReplay)
+
+				// Optionally deactivate after replay
+				val deactivateAfter = settings.deactivateAfterReplay ?: Settings.DEFAULT_DEACTIVATE_AFTER_REPLAY
+				if (deactivateAfter) {
+					Log.d(TAG, "Deactivating MediaSession after replay (user setting)")
+					deactivateMediaSession()
+				}
+			} else {
+				Log.d(TAG, "No notification to replay")
+			}
+		}
 	}
 
 	companion object {
