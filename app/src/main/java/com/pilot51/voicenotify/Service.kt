@@ -28,8 +28,6 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.AudioManager.OnModeChangedListener
-import android.support.v4.media.session.MediaSessionCompat
-import android.support.v4.media.session.PlaybackStateCompat
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -55,6 +53,8 @@ import com.pilot51.voicenotify.prefs.db.AppDatabase
 import com.pilot51.voicenotify.prefs.db.AppDatabase.Companion.db
 import com.pilot51.voicenotify.prefs.db.AppRepository
 import com.pilot51.voicenotify.prefs.db.Settings
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
