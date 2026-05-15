@@ -215,6 +215,15 @@ fun MainScreen(
 				onClick = { showShakeToSilence = true }
 			)
 			PreferenceRowCheckbox(
+				titleRes = R.string.shake_stop,
+				summaryResOn = R.string.shake_stop_summary_on,
+				summaryResOff = R.string.shake_stop_summary_off,
+				value = settings.shakeStopEnabled ?: VNSettings.DEFAULT_SHAKE_STOP_ENABLED,
+				onChange = { enabled ->
+					vm.save(settings.copy(shakeStopEnabled = enabled))
+				}
+			)
+			PreferenceRowCheckbox(
 				titleRes = R.string.shake_replay,
 				summaryResOn = R.string.shake_replay_summary_on,
 				summaryResOff = R.string.shake_replay_summary_off,

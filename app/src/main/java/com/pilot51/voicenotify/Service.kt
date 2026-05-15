@@ -92,6 +92,7 @@ class Service : NotificationListenerService() {
 	private val replayListMutex = Mutex()
 	@Volatile private var replayTimeoutJob: Job? = null
 	@Volatile private var shakeEnabledForReplay = false
+	@Volatile private var shakeStopEnabled = Settings.DEFAULT_SHAKE_STOP_ENABLED
 	@Volatile private var shakeReplayEnabled = Settings.DEFAULT_SHAKE_REPLAY_ENABLED
 	@Volatile private var shakeReplayTimeoutMinutes = Settings.DEFAULT_SHAKE_REPLAY_TIMEOUT_MINUTES
 	private var enabledBluetoothDevices = emptyList<com.pilot51.voicenotify.prefs.db.BluetoothDevice>()
@@ -147,6 +148,7 @@ class Service : NotificationListenerService() {
 		}
 		ioScope.launch {
 			AppDatabase.globalSettingsFlow.collect { settings ->
+				shakeStopEnabled = settings.shakeStopEnabled ?: Settings.DEFAULT_SHAKE_STOP_ENABLED
 				shakeReplayEnabled = settings.shakeReplayEnabled ?: Settings.DEFAULT_SHAKE_REPLAY_ENABLED
 				shakeReplayTimeoutMinutes = settings.shakeReplayTimeoutMinutes ?: Settings.DEFAULT_SHAKE_REPLAY_TIMEOUT_MINUTES
 				if (!shakeReplayEnabled) clearReplayList()
@@ -559,21 +561,23 @@ class Service : NotificationListenerService() {
 						if (replayList.isNotEmpty()) replayList.toList().also { replayList.clear() } else null
 					}
 				} else null
-				// Always silence any currently speaking TTS
-				ttsQueueMutex.withLock {
-					ttsQueue.values.forEach { info ->
-						info.addIgnoreReasons(IgnoreReason.SHAKE)
-						NotifyList.updateInfo(info)
+				if (shakeStopEnabled) {
+					// Silence any currently speaking TTS
+					ttsQueueMutex.withLock {
+						ttsQueue.values.forEach { info ->
+							info.addIgnoreReasons(IgnoreReason.SHAKE)
+							NotifyList.updateInfo(info)
+						}
 					}
+					tts?.stop()
 				}
-				tts?.stop()
 				if (toReplay != null) {
 					Log.i(TAG, "Shake triggered - replaying ${toReplay.size} stored notification(s)")
 					replayTimeoutJob?.cancel()
 					replayTimeoutJob = null
 					shakeEnabledForReplay = false
 					for (info in toReplay) speak(info)
-				} else {
+				} else if (shakeStopEnabled) {
 					Log.i(TAG, "TTS silenced by shake")
 				}
 			}

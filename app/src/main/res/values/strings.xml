@@ -228,6 +228,9 @@
 	<string name="tts_repeat_dialog_msg">Notifications are repeated at the defined interval until the screen is turned on. Notifications created while the screen is on are not repeated.\n\nValue is in minutes. Blank or 0 to disable.</string>
 
 	<!-- Shake Replay -->
+	<string name="shake_stop">Shake to Stop</string>
+	<string name="shake_stop_summary_on">Shake to stop currently speaking notification (enabled)</string>
+	<string name="shake_stop_summary_off">Shake to stop currently speaking notification (disabled)</string>
 	<string name="shake_replay">Shake to Replay</string>
 	<string name="shake_replay_summary_on">Shake to replay recent notifications (currently enabled)</string>
 	<string name="shake_replay_summary_off">Shake to replay recent notifications (currently disabled)</string>

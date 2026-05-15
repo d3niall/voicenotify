@@ -89,6 +89,8 @@ data class Settings(
 	val ttsDelay: Int? = null,
 	@ColumnInfo(name = "tts_repeat")
 	val ttsRepeat: Double? = null,
+	@ColumnInfo(name = "shake_stop_enabled")
+	val shakeStopEnabled: Boolean? = null,
 	@ColumnInfo(name = "shake_replay_enabled")
 	val shakeReplayEnabled: Boolean? = null,
 	/** Number of minutes to keep spoken notifications available for replay. 0 to disable. */
@@ -132,6 +134,7 @@ data class Settings(
 			ttsStream = overrides.ttsStream ?: ttsStream,
 			ttsDelay = overrides.ttsDelay ?: ttsDelay,
 			ttsRepeat = overrides.ttsRepeat ?: ttsRepeat,
+			shakeStopEnabled = overrides.shakeStopEnabled ?: shakeStopEnabled,
 			shakeReplayEnabled = overrides.shakeReplayEnabled ?: shakeReplayEnabled,
 			shakeReplayTimeoutMinutes = overrides.shakeReplayTimeoutMinutes ?: shakeReplayTimeoutMinutes
 		)
@@ -159,6 +162,7 @@ data class Settings(
 		const val DEFAULT_SPEAK_EMOJIS = true
 		const val DEFAULT_MAX_LENGTH = 500
 		const val DEFAULT_TTS_STREAM = AudioManager.STREAM_MUSIC
+		const val DEFAULT_SHAKE_STOP_ENABLED = true
 		const val DEFAULT_SHAKE_REPLAY_ENABLED = false
 		const val DEFAULT_SHAKE_REPLAY_TIMEOUT_MINUTES = 10
 		val defaults get() = Settings(
@@ -184,6 +188,7 @@ data class Settings(
 			ttsStream = DEFAULT_TTS_STREAM,
 			ttsDelay = null,
 			ttsRepeat = null,
+			shakeStopEnabled = DEFAULT_SHAKE_STOP_ENABLED,
 			shakeReplayEnabled = DEFAULT_SHAKE_REPLAY_ENABLED,
 			shakeReplayTimeoutMinutes = DEFAULT_SHAKE_REPLAY_TIMEOUT_MINUTES
 		)
