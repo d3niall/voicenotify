@@ -88,6 +88,12 @@ class Service : NotificationListenerService() {
 	private var repeaterJob: Job? = null
 	private val shake by lazy { Shake(appContext) }
 	private val repeatList = mutableListOf<NotificationInfo>()
+	private val replayList = mutableListOf<NotificationInfo>()
+	private val replayListMutex = Mutex()
+	@Volatile private var replayTimeoutJob: Job? = null
+	@Volatile private var shakeEnabledForReplay = false
+	@Volatile private var shakeReplayEnabled = Settings.DEFAULT_SHAKE_REPLAY_ENABLED
+	@Volatile private var shakeReplayTimeoutMinutes = Settings.DEFAULT_SHAKE_REPLAY_TIMEOUT_MINUTES
 	private var enabledBluetoothDevices = emptyList<com.pilot51.voicenotify.prefs.db.BluetoothDevice>()
 	@get:RequiresApi(26)
 	@delegate:RequiresApi(26)
@@ -137,6 +143,13 @@ class Service : NotificationListenerService() {
 		ioScope.launch {
 			AppDatabase.enabledBluetoothDevicesFlow.collect { devices ->
 				enabledBluetoothDevices = devices
+			}
+		}
+		ioScope.launch {
+			AppDatabase.globalSettingsFlow.collect { settings ->
+				shakeReplayEnabled = settings.shakeReplayEnabled ?: Settings.DEFAULT_SHAKE_REPLAY_ENABLED
+				shakeReplayTimeoutMinutes = settings.shakeReplayTimeoutMinutes ?: Settings.DEFAULT_SHAKE_REPLAY_TIMEOUT_MINUTES
+				if (!shakeReplayEnabled) clearReplayList()
 			}
 		}
 	}
@@ -199,9 +212,10 @@ class Service : NotificationListenerService() {
 					Log.d(TAG, "Completed utterance ID $utteranceId")
 					speakingUtteranceId = null
 					ioScope.launch {
-						ttsQueueMutex.withLock {
+						val info = ttsQueueMutex.withLock {
 							ttsQueue.remove(utteranceId.toLong())
 						}
+						if (info != null) addToReplayList(info)
 						if (ttsQueue.isEmpty()) onDoneSpeaking()
 					}
 				}
@@ -279,7 +293,9 @@ class Service : NotificationListenerService() {
 				audioMan.abandonAudioFocus(null)
 			}
 		}
-		shake.disable()
+		if (!shakeEnabledForReplay) {
+			shake.disable()
+		}
 		shutdownTts()
 	}
 
@@ -537,8 +553,13 @@ class Service : NotificationListenerService() {
 		}
 		registerReceiver(stateReceiver, filter)
 		shake.onShake = {
-			Log.i(TAG, "TTS silenced by shake")
 			ioScope.launch {
+				val toReplay = if (shakeReplayEnabled) {
+					replayListMutex.withLock {
+						if (replayList.isNotEmpty()) replayList.toList().also { replayList.clear() } else null
+					}
+				} else null
+				// Always silence any currently speaking TTS
 				ttsQueueMutex.withLock {
 					ttsQueue.values.forEach { info ->
 						info.addIgnoreReasons(IgnoreReason.SHAKE)
@@ -546,6 +567,15 @@ class Service : NotificationListenerService() {
 					}
 				}
 				tts?.stop()
+				if (toReplay != null) {
+					Log.i(TAG, "Shake triggered - replaying ${toReplay.size} stored notification(s)")
+					replayTimeoutJob?.cancel()
+					replayTimeoutJob = null
+					shakeEnabledForReplay = false
+					for (info in toReplay) speak(info)
+				} else {
+					Log.i(TAG, "TTS silenced by shake")
+				}
 			}
 		}
 		setInitialized(true)
@@ -561,6 +591,7 @@ class Service : NotificationListenerService() {
 				audioMan.removeOnModeChangedListener(audioModeListener)
 			}
 			unregisterReceiver(stateReceiver)
+			clearReplayList()
 			setInitialized(false)
 		}
 	}
@@ -724,6 +755,29 @@ class Service : NotificationListenerService() {
 		return app?.run {
 			db.settingsDao.getAppSettings(packageName).firstOrNull()?.let { gs.merge(it) }
 		} ?: gs
+	}
+
+	private suspend fun addToReplayList(info: NotificationInfo) {
+		if (!shakeReplayEnabled || shakeReplayTimeoutMinutes <= 0) return
+		replayListMutex.withLock { replayList.add(info) }
+		shakeEnabledForReplay = true
+		shake.enable()
+		replayTimeoutJob?.cancel()
+		replayTimeoutJob = ioScope.launch {
+			delay(shakeReplayTimeoutMinutes * 60 * 1000L)
+			clearReplayList()
+		}
+		Log.d(TAG, "Added to replay list (${replayList.size} total), timeout: ${shakeReplayTimeoutMinutes}min")
+	}
+
+	private fun clearReplayList() {
+		replayTimeoutJob?.cancel()
+		replayTimeoutJob = null
+		shakeEnabledForReplay = false
+		ioScope.launch {
+			replayListMutex.withLock { replayList.clear() }
+			if (tts == null) shake.disable()
+		}
 	}
 
 	companion object {

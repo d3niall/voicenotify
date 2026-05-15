@@ -25,12 +25,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
@@ -63,6 +69,7 @@ import com.pilot51.voicenotify.prefs.DataStoreManager.getPrefFlow
 import com.pilot51.voicenotify.prefs.DataStoreManager.setPref
 import com.pilot51.voicenotify.prefs.PreferenceHelper.KEY_DISABLE_AUTOSTART_MSG
 import com.pilot51.voicenotify.prefs.db.App
+import com.pilot51.voicenotify.prefs.db.Settings as VNSettings
 import com.pilot51.voicenotify.ui.dialog.main.BackupDialog
 import com.pilot51.voicenotify.ui.dialog.main.BluetoothDevicesDialog
 import com.pilot51.voicenotify.ui.dialog.main.DeviceStatesDialog
@@ -120,6 +127,7 @@ fun MainScreen(
 		)
 	}
 	var showShakeToSilence by remember { mutableStateOf(false) }
+	var showShakeReplayTimeout by remember { mutableStateOf(false) }
 	var showRequireText by remember { mutableStateOf(false) }
 	var showIgnoreText by remember { mutableStateOf(false) }
 	var showIgnoreRepeats by remember { mutableStateOf(false) }
@@ -206,6 +214,25 @@ fun MainScreen(
 				summaryRes = R.string.shake_to_silence_summary,
 				onClick = { showShakeToSilence = true }
 			)
+			PreferenceRowCheckbox(
+				titleRes = R.string.shake_replay,
+				summaryResOn = R.string.shake_replay_summary_on,
+				summaryResOff = R.string.shake_replay_summary_off,
+				value = settings.shakeReplayEnabled ?: VNSettings.DEFAULT_SHAKE_REPLAY_ENABLED,
+				onChange = { enabled ->
+					vm.save(settings.copy(shakeReplayEnabled = enabled))
+				}
+			)
+			if (settings.shakeReplayEnabled != false) {
+				PreferenceRowLink(
+					title = stringResource(R.string.shake_replay_timeout),
+					summary = stringResource(
+						R.string.shake_replay_timeout_summary,
+						(settings.shakeReplayTimeoutMinutes ?: VNSettings.DEFAULT_SHAKE_REPLAY_TIMEOUT_MINUTES).toString()
+					),
+					onClick = { showShakeReplayTimeout = true }
+				)
+			}
 		}
 		PreferenceRowLink(
 			titleRes = R.string.require_strings,
@@ -346,6 +373,9 @@ fun MainScreen(
 	if (showShakeToSilence) {
 		ShakeThresholdDialog(vm) { showShakeToSilence = false }
 	}
+	if (showShakeReplayTimeout) {
+		ShakeReplayTimeoutDialog(vm, settings) { showShakeReplayTimeout = false }
+	}
 	if (showRequireText) {
 		RequireTextDialog(vm) { showRequireText = false }
 	}
@@ -484,4 +514,60 @@ private fun MainScreenPreview() {
 	AppTheme {
 		MainScreen(PreferencesPreviewVM, null, {}, {})
 	}
+}
+
+@Composable
+private fun ShakeReplayTimeoutDialog(
+	vm: IPreferencesViewModel,
+	settings: com.pilot51.voicenotify.prefs.db.Settings,
+	onDismiss: () -> Unit
+) {
+	var timeoutValue by remember {
+		mutableStateOf((settings.shakeReplayTimeoutMinutes ?: VNSettings.DEFAULT_SHAKE_REPLAY_TIMEOUT_MINUTES).toString())
+	}
+	var showError by remember { mutableStateOf(false) }
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		confirmButton = {
+			TextButton(
+				onClick = {
+					val timeout = timeoutValue.toIntOrNull()
+					if (timeout != null && timeout in 0..200) {
+						vm.save(settings.copy(shakeReplayTimeoutMinutes = timeout))
+						onDismiss()
+					} else {
+						showError = true
+					}
+				}
+			) {
+				Text(stringResource(android.R.string.ok))
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) {
+				Text(stringResource(android.R.string.cancel))
+			}
+		},
+		title = { Text(stringResource(R.string.shake_replay_timeout)) },
+		text = {
+			Column {
+				Text(stringResource(R.string.shake_replay_timeout_description))
+				Spacer(modifier = Modifier.height(16.dp))
+				OutlinedTextField(
+					value = timeoutValue,
+					onValueChange = {
+						timeoutValue = it
+						showError = false
+					},
+					label = { Text(stringResource(R.string.minutes)) },
+					isError = showError,
+					supportingText = if (showError) {
+						{ Text(stringResource(R.string.shake_replay_timeout_error)) }
+					} else null,
+					keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+					modifier = Modifier.fillMaxWidth()
+				)
+			}
+		}
+	)
 }

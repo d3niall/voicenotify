@@ -227,6 +227,16 @@
 	<string name="tts_repeat_summary">Continually repeat notifications over TTS until screen turns on</string>
 	<string name="tts_repeat_dialog_msg">Notifications are repeated at the defined interval until the screen is turned on. Notifications created while the screen is on are not repeated.\n\nValue is in minutes. Blank or 0 to disable.</string>
 
+	<!-- Shake Replay -->
+	<string name="shake_replay">Shake to Replay</string>
+	<string name="shake_replay_summary_on">Shake to replay recent notifications (currently enabled)</string>
+	<string name="shake_replay_summary_off">Shake to replay recent notifications (currently disabled)</string>
+	<string name="shake_replay_timeout">Replay Timeout</string>
+	<string name="shake_replay_timeout_summary">Notifications available for replay: %s minutes</string>
+	<string name="shake_replay_timeout_description">After a notification is spoken, shaking your device will replay all recent notifications. Set how many minutes they remain available (0–200). 0 disables replay.</string>
+	<string name="shake_replay_timeout_error">Enter a whole number between 0 and 200</string>
+	<string name="minutes">Minutes</string>
+
 	<!-- AppListScreen and NotifyList -->
 	<string name="app_is_ignored">%s is ignored</string>
 	<string name="app_is_not_ignored">%s is enabled</string>
