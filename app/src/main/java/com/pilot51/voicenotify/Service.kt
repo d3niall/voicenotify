@@ -391,6 +391,12 @@ class Service : NotificationListenerService() {
 					if (ignoreReasons.isNotEmpty()) {
 						Log.i(TAG, "Notification ignored for reason(s): ${ignoreReasons.joinToString()}")
 						info.addIgnoreReasons(*ignoreReasons.toTypedArray())
+						if (shakeEnabledForReplay && ignoreReasons.any {
+								it == IgnoreReason.HEADSET_OFF || it == IgnoreReason.HEADSET_ON
+							}) {
+							Log.i(TAG, "Canceling replay list early: device conditions no longer met")
+							clearReplayList()
+						}
 						return@prepSpeak
 					}
 					speak(info)
@@ -547,7 +553,6 @@ class Service : NotificationListenerService() {
 		}
 		val filter = IntentFilter().apply {
 			addAction(Intent.ACTION_HEADSET_PLUG)
-			addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
 			addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
 			addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
 			addAction(Intent.ACTION_SCREEN_ON)
@@ -733,6 +738,7 @@ class Service : NotificationListenerService() {
 			}
 			if (interruptIfIgnored) {
 				processIgnoreForQueue()
+				ioScope.launch { cancelReplayIfDeviceConditionsFail() }
 			}
 		}
 	}
@@ -772,6 +778,16 @@ class Service : NotificationListenerService() {
 			clearReplayList()
 		}
 		Log.d(TAG, "Added to replay list (${replayList.size} total), timeout: ${shakeReplayTimeoutMinutes}min")
+	}
+
+	private suspend fun cancelReplayIfDeviceConditionsFail() {
+		if (!shakeEnabledForReplay) return
+		val settings = AppDatabase.globalSettingsFlow.first()
+		val headsetOn = isHeadsetOn()
+		if ((!settings.speakHeadsetOff!! && !headsetOn) || (!settings.speakHeadsetOn!! && headsetOn)) {
+			Log.i(TAG, "Canceling replay list early: device conditions no longer met")
+			clearReplayList()
+		}
 	}
 
 	private fun clearReplayList() {
