@@ -577,11 +577,16 @@ class Service : NotificationListenerService() {
 					tts?.stop()
 				}
 				if (toReplay != null) {
-					Log.i(TAG, "Shake triggered - replaying ${toReplay.size} stored notification(s)")
 					replayTimeoutJob?.cancel()
 					replayTimeoutJob = null
 					shakeEnabledForReplay = false
-					for (info in toReplay) speak(info)
+					if (isHeadsetConditionBlockingPlayback()) {
+						Log.i(TAG, "Shake triggered but device conditions no longer met, discarding replay list")
+						shake.disable()
+					} else {
+						Log.i(TAG, "Shake triggered - replaying ${toReplay.size} stored notification(s)")
+						for (info in toReplay) speak(info)
+					}
 				} else if (shakeStopEnabled) {
 					Log.i(TAG, "TTS silenced by shake")
 				}
@@ -676,9 +681,8 @@ class Service : NotificationListenerService() {
 			return enabledBluetoothDevices.any { it.deviceAddress == deviceAddress }
 		}
 
-		// For legacy API (<M), we don't have device address, so check if ANY enabled device exists
-		// This is less precise but maintains functionality
-		return enabledBluetoothDevices.isNotEmpty()
+		// For legacy API (<M), we don't have device address, but list is non-empty so allow
+		return true
 	}
 
 	/**
@@ -780,11 +784,15 @@ class Service : NotificationListenerService() {
 		Log.d(TAG, "Added to replay list (${replayList.size} total), timeout: ${shakeReplayTimeoutMinutes}min")
 	}
 
-	private suspend fun cancelReplayIfDeviceConditionsFail() {
-		if (!shakeEnabledForReplay) return
+	private suspend fun isHeadsetConditionBlockingPlayback(): Boolean {
 		val settings = AppDatabase.globalSettingsFlow.first()
 		val headsetOn = isHeadsetOn()
-		if ((!settings.speakHeadsetOff!! && !headsetOn) || (!settings.speakHeadsetOn!! && headsetOn)) {
+		return (!settings.speakHeadsetOff!! && !headsetOn) || (!settings.speakHeadsetOn!! && headsetOn)
+	}
+
+	private suspend fun cancelReplayIfDeviceConditionsFail() {
+		if (!shakeEnabledForReplay) return
+		if (isHeadsetConditionBlockingPlayback()) {
 			Log.i(TAG, "Canceling replay list early: device conditions no longer met")
 			clearReplayList()
 		}
